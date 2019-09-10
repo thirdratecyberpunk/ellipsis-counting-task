@@ -118,7 +118,8 @@ parser= argparse.ArgumentParser(description=
 'Classify an image according to the number of ellipses it contains.')
 parser.add_argument('--csv_file', default='data/shapes_dataset_MR/labels.csv')
 parser.add_argument('--root_dir', default='data/shapes_dataset_MR/')
-parser.add_argument('--display', default=False)
+parser.add_argument('--display', action='store_true')
+parser.add_argument('--num_test_samples', type=int, default=5)
 
 args = parser.parse_args()
 
@@ -168,7 +169,9 @@ next = data_iter.next()
 images = next.get('img_tensor')
 labels = next.get('ellipses')
 
-imshow(torchvision.utils.make_grid(images))
+if (args.display):
+	imshow(torchvision.utils.make_grid(images))
+
 print('GroundTruth: ', ' '.join('%5s' % classes[labels[j]] for j in range(4)))
 
 outputs = net(images)
