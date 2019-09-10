@@ -14,6 +14,7 @@ import torch.nn as nn
 import torch.nn.functional as nnfunc
 import torch.optim as optim
 from PIL import Image
+from tabulate import tabulate
 
 '''
 Dataset of images and the number of ellipses/other polygons.
@@ -34,13 +35,12 @@ class EllipsesDataset(Dataset):
         # compose chains the transitions together
         # this turns an image into a tensor, then normalizes it
         # TODO: change image size definition in nn rather than just resize it
-        #self.transform = transforms.Compose(
-        #[transforms.ToTensor(),
-        #transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5))])
         self.transform = transforms.Compose(
-        [transforms.Resize((32,32)),
+        [
+        transforms.Resize((32,32)),
         transforms.ToTensor(),
-        transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5))])
+        transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5))
+        ])
 
     # returns the number of elements in a dataset as the length of frame
     def __len__(self):
@@ -78,6 +78,7 @@ class Net(nn.Module):
             self.conv2 = nn.Conv2d(6,16,5)
             # TODO: change image size definition in nn
             # rather than just resize it
+            # 16 input channels
             self.fc1 = nn.Linear(16 * 5 * 5, 120)
             self.fc2 = nn.Linear(120, 84)
             self.fc3 = nn.Linear(84,10)
@@ -130,15 +131,20 @@ args = parser.parse_args()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print (device)
 
+# Random seed
+torch.manual_seed(1)
+np.random.seed(1)
+
 train_data = EllipsesDataset(csv_file=args.csv_file, root_dir=args.root_dir)
+
 test_data = EllipsesDataset(csv_file=args.csv_file, root_dir=args.root_dir)
 
-train_loader, test_loader = load_split_train_test(0.2)
+#train_loader, test_loader = load_split_train_test(0.2)
 
-#train_loader = torch.utils.data.DataLoader(train_data, batch_size=4,
-#shuffle=True, num_workers=2)
-#test_loader = torch.utils.data.DataLoader(test_data, batch_size=4,
-#shuffle=True, num_workers=2)
+train_loader = torch.utils.data.DataLoader(train_data, batch_size=args.num_test_samples,
+shuffle=True, num_workers=2)
+test_loader = torch.utils.data.DataLoader(test_data, batch_size=args.num_test_samples,
+shuffle=True, num_workers=2)
 
 classes = ('0','1','2','3','4','5')
 
@@ -178,10 +184,12 @@ labels = next.get('ellipses')
 if (args.display):
 	imshow(torchvision.utils.make_grid(images))
 
-print('GroundTruth: ', ' '.join('%5s' % classes[labels[j]] for j in range(args.num_test_samples)))
-
 outputs = net(images)
 
 # obtaining the index of the highest energy
 _, predicted = torch.max(outputs, 1)
-print('Predicted: ', ' '.join('%5s' % classes[predicted[j]] for j in range(args.num_test_samples)))
+
+true_val = (classes[labels[j]] for j in range(args.num_test_samples))
+pred_val = (classes[predicted[j]] for j in range(args.num_test_samples))
+
+print(tabulate({"True value": true_val,"Predicted value": pred_val}, headers="keys", showindex="always"))
