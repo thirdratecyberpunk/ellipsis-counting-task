@@ -1,4 +1,6 @@
-# classifying a set of images according to the number of ellipses
+'''
+classifying a set of images according to the number of ellipses
+'''
 import torch
 import torchvision
 import torchvision.transforms as transforms
@@ -20,11 +22,28 @@ from sklearn.model_selection import train_test_split
 class Net(nn.Module):
         # constructing the neural network's structure
         def __init__(self):
+            '''
             super(Net, self).__init__()
             # 3 input channels
             # 6 output channels
-            # 3 x 3 convolution
+            # filters are 3 * 5 * 5
             self.conv1 = nn.Conv2d(3,6,5)
+            # 2 by 2 kernel with a stride of 2
+            self.pool = nn.MaxPool2d(2,2)
+            self.conv2 = nn.Conv2d(6,16,5)
+            # TODO: change image size definition in nn
+            # rather than just resize it
+            # 16 input channels
+            self.fc1 = nn.Linear(16 * 5 * 5, 120)
+            self.fc2 = nn.Linear(120, 84)
+            self.fc3 = nn.Linear(84,10)
+            '''
+            super(Net, self).__init__()
+            # 3 input channels
+            # 6 output channels
+            # filters are 3 * 5 * 5
+            self.conv1 = nn.Conv2d(3,6,5)
+            # 2 by 2 kernel with a stride of 2
             self.pool = nn.MaxPool2d(2,2)
             self.conv2 = nn.Conv2d(6,16,5)
             # TODO: change image size definition in nn
@@ -37,6 +56,7 @@ class Net(nn.Module):
         def forward(self, x):
             x = self.pool(nnfunc.relu(self.conv1(x)))
             x = self.pool(nnfunc.relu(self.conv2(x)))
+            # reshapes the vector to anticipated size
             x = x.view(-1, 16 * 5 * 5)
             x = nnfunc.relu(self.fc1(x))
             x = nnfunc.relu(self.fc2(x))
@@ -59,6 +79,7 @@ parser.add_argument('--csv_file', default='data/shapes_dataset_MR/labels.csv')
 parser.add_argument('--root_dir', default='data/shapes_dataset_MR/')
 parser.add_argument('--display', action='store_true')
 parser.add_argument('--num_test_samples', type=int, default=5)
+parser.add_argument('--epochs', type=int, default=2)
 
 args = parser.parse_args()
 
@@ -73,8 +94,8 @@ dataset = EllipsesDataset(csv_file=args.csv_file, root_dir=args.root_dir)
 
 train_data, test_data = train_test_split(dataset, test_size=0.1)
 
-train_loader = DataLoader(train_data, batch_size = 10, shuffle=True, num_workers=2)
-test_loader = DataLoader(test_data, batch_size = 10, shuffle=True, num_workers=2)
+train_loader = DataLoader(train_data, batch_size = 5, shuffle=True, num_workers=2)
+test_loader = DataLoader(test_data, batch_size = 5, shuffle=True, num_workers=2)
 
 classes = ('0','1','2','3','4','5')
 
@@ -84,8 +105,10 @@ net = Net()
 criterion = nn.CrossEntropyLoss()
 optimiser = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 
+print("Training...")
 # training the network
-for epoch in range(2):
+for epoch in range(args.epochs):
+    print("Starting epoch " + str(epoch))
     running_loss = 0.0
     for i, data in enumerate(train_loader, 0):
         # gets inputs
@@ -110,6 +133,7 @@ data_iter = iter(test_loader)
 next = data_iter.next()
 images = next.get('img_tensor')
 labels = next.get('ellipses')
+polygon_labels = next.get('polygons')
 
 if (args.display):
 	imshow(torchvision.utils.make_grid(images))
@@ -119,7 +143,22 @@ outputs = net(images)
 # obtaining the index of the highest energy
 _, predicted = torch.max(outputs, 1)
 
-true_val = (classes[labels[j]] for j in range(args.num_test_samples))
-pred_val = (classes[predicted[j]] for j in range(args.num_test_samples))
+true_val = (classes[labels[j]] for j in range(5))
+pred_val = (classes[predicted[j]] for j in range(5))
+polygon_val = (classes[polygon_labels[j]] for j in range(5))
 
-print(tabulate({"True value": true_val,"Predicted value": pred_val}, headers="keys", showindex="always"))
+print(tabulate({"True value": true_val,"Predicted value": pred_val,"Polygons": polygon_val}, headers="keys", showindex="always"))
+
+correct = 0
+total = 0
+with torch.no_grad():
+    for data in test_loader:
+        images = data.get('img_tensor')
+        labels = data.get('ellipses')
+        outputs = net(images)
+        _, predicted = torch.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+print('Accuracy of the network on the test images: %d %%' % (
+    100 * correct / total))
