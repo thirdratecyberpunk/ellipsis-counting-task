@@ -9,62 +9,13 @@ from skimage import io, transform
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-from torch.utils.data.sampler import SubsetRandomSampler
 import torch.nn as nn
 import torch.nn.functional as nnfunc
 import torch.optim as optim
 from PIL import Image
 from tabulate import tabulate
-
-'''
-Dataset of images and the number of ellipses/other polygons.
-'''
-class EllipsesDataset(Dataset):
-    # dataset of images to sort
-    def __init__(self, csv_file, root_dir, transform=None):
-        """
-        Args:
-            csv_file: Path to csv file of annotations
-            root_dir: Directory of images
-            transform: Optional transformation
-        """
-        # creates a data frame from the contents of the csv
-        self.num_of_elements_frame = pd.read_csv(csv_file)
-        self.root_dir = root_dir
-        # transforms act as image transformations
-        # compose chains the transitions together
-        # this turns an image into a tensor, then normalizes it
-        # TODO: change image size definition in nn rather than just resize it
-        self.transform = transforms.Compose(
-        [
-        transforms.Resize((32,32)),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5))
-        ])
-
-    # returns the number of elements in a dataset as the length of frame
-    def __len__(self):
-        return len(self.num_of_elements_frame)
-
-    # returns an object definition of a sample given a tensor
-    def __getitem__(self, idx):
-        if torch.is_tensor(idx):
-            idx = idx.tolist()
-
-        # finds the image by searching for the index in the frame
-        img_name = os.path.join(self.root_dir,
-        str(self.num_of_elements_frame.iloc[idx, 2]),
-        str(self.num_of_elements_frame.iloc[idx, 0]))
-        # loads the image as a tensor
-        image = Image.open(img_name)
-        img_tensor = self.transform(image)
-
-        polygons = self.num_of_elements_frame.iloc[idx, 1]
-        ellipses = self.num_of_elements_frame.iloc[idx, 2]
-        sample = {'img_tensor' : img_tensor, 'img_name': img_name,
-        'polygons': polygons, 'ellipses': ellipses}
-
-        return sample
+from EllipsesDataset import EllipsesDataset
+from sklearn.model_selection import train_test_split
 
 class Net(nn.Module):
         # constructing the neural network's structure
@@ -92,23 +43,6 @@ class Net(nn.Module):
             x = self.fc3(x)
             return x
 
-'''
-Function that returns the training and testing samples
-'''
-def load_split_train_test(valid_size = 0.2):
-    # splits dataset into training and testing at a random point
-    num_train = len(train_data)
-    indices = list(range(num_train))
-    split = int(np.floor(valid_size * num_train))
-    np.random.shuffle(indices)
-    train_idx, test_idx = indices[split:], indices[:split]
-    train_sampler = SubsetRandomSampler(train_idx)
-    test_sampler = SubsetRandomSampler(test_idx)
-    train_loader = torch.utils.data.DataLoader(train_data, batch_size=args.num_test_samples,
-    shuffle=False, num_workers=2, sampler=train_sampler)
-    test_loader = torch.utils.data.DataLoader(test_data, batch_size=args.num_test_samples,
-    shuffle=False, num_workers=2, sampler=test_sampler)
-    return train_loader, test_loader
 
 '''
 Function that shows an image.
@@ -120,7 +54,7 @@ def imshow(img):
     plt.show()
 
 parser= argparse.ArgumentParser(description=
-'Classify an image according to the number of ellipses it contains.')
+'Predict the number of ellipses contained in an image.')
 parser.add_argument('--csv_file', default='data/shapes_dataset_MR/labels.csv')
 parser.add_argument('--root_dir', default='data/shapes_dataset_MR/')
 parser.add_argument('--display', action='store_true')
@@ -132,19 +66,15 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print (device)
 
 # Random seed
-torch.manual_seed(1)
-np.random.seed(1)
+torch.manual_seed(0)
+np.random.seed(0)
 
-train_data = EllipsesDataset(csv_file=args.csv_file, root_dir=args.root_dir)
+dataset = EllipsesDataset(csv_file=args.csv_file, root_dir=args.root_dir)
 
-test_data = EllipsesDataset(csv_file=args.csv_file, root_dir=args.root_dir)
+train_data, test_data = train_test_split(dataset, test_size=0.1)
 
-#train_loader, test_loader = load_split_train_test(0.2)
-
-train_loader = torch.utils.data.DataLoader(train_data, batch_size=args.num_test_samples,
-shuffle=True, num_workers=2)
-test_loader = torch.utils.data.DataLoader(test_data, batch_size=args.num_test_samples,
-shuffle=True, num_workers=2)
+train_loader = DataLoader(train_data, batch_size = 10, shuffle=True, num_workers=2)
+test_loader = DataLoader(test_data, batch_size = 10, shuffle=True, num_workers=2)
 
 classes = ('0','1','2','3','4','5')
 
