@@ -18,6 +18,7 @@ from PIL import Image
 from tabulate import tabulate
 from EllipsesDataset import EllipsesDataset
 from sklearn.model_selection import train_test_split
+import random
 
 class Net(nn.Module):
         # constructing the neural network's structure
@@ -42,7 +43,7 @@ class Net(nn.Module):
             # 3 input channels
             # 6 output channels
             # filters are 3 * 5 * 5
-            self.conv1 = nn.Conv2d(3,6,5)
+            self.conv1 = nn.Conv2d(in_channels=3,out_channels=6,kernel_size=5)
             # 2 by 2 kernel with a stride of 2
             self.pool = nn.MaxPool2d(2,2)
             self.conv2 = nn.Conv2d(6,16,5)
@@ -63,7 +64,6 @@ class Net(nn.Module):
             x = self.fc3(x)
             return x
 
-
 '''
 Function that shows an image.
 '''
@@ -73,13 +73,13 @@ def imshow(img):
     plt.imshow(np.transpose(npimg, (1, 2, 0)))
     plt.show()
 
-parser= argparse.ArgumentParser(description=
-'Predict the number of ellipses contained in an image.')
-parser.add_argument('--csv_file', default='data/shapes_dataset_MR/labels.csv')
-parser.add_argument('--root_dir', default='data/shapes_dataset_MR/')
-parser.add_argument('--display', action='store_true')
-parser.add_argument('--num_test_samples', type=int, default=5)
-parser.add_argument('--epochs', type=int, default=2)
+parser= argparse.ArgumentParser(description='Predict the number of ellipses contained in an image.')
+parser.add_argument('--csv_file', default='data/shapes_dataset_MR/labels.csv', help="Directory of .csv file containing class labels.")
+parser.add_argument('--root_dir', default='data/shapes_dataset_MR/', help="Root directory of class images.")
+parser.add_argument('--seed', type=int, default=0, help="Value used as the seed for random values.")
+parser.add_argument('--display', action='store_true', help="Boolean for displaying a sample of images.")
+parser.add_argument('--num_test_samples', type=int, default=5, help="Number of images in a batch.")
+parser.add_argument('--epochs', type=int, default=2, help="Amount of generations to train the model for.")
 
 args = parser.parse_args()
 
@@ -87,8 +87,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print (device)
 
 # Random seed
-torch.manual_seed(0)
-np.random.seed(0)
+torch.manual_seed(args.seed)
+np.random.seed(args.seed)
+random.seed(args.seed)
 
 dataset = EllipsesDataset(csv_file=args.csv_file, root_dir=args.root_dir)
 
@@ -103,6 +104,7 @@ net = Net()
 # cross entrophy loss: using the distribution of classes in the dataset to
 # reduce prediction errors
 criterion = nn.CrossEntropyLoss()
+#criterion = nn.BCELoss()
 optimiser = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 
 print("Training...")
@@ -129,7 +131,6 @@ print("Finished training")
 
 # testing performance
 data_iter = iter(test_loader)
-# images, labels = data_iter.next()
 next = data_iter.next()
 images = next.get('img_tensor')
 labels = next.get('ellipses')

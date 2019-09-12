@@ -22,9 +22,9 @@ import random
 
 parser= argparse.ArgumentParser(description=
 'Randomly guess a class label.')
-parser.add_argument('--csv_file', default='data/shapes_dataset_MR/labels.csv')
-parser.add_argument('--root_dir', default='data/shapes_dataset_MR/')
-parser.add_argument('--display', action='store_true')
+parser.add_argument('--csv_file', default='data/shapes_dataset_MR/labels.csv', help="Directory of .csv file containing class labels.")
+parser.add_argument('--root_dir', default='data/shapes_dataset_MR/', help="Root directory of class images.")
+parser.add_argument('--seed', type=int, default=0, help="Value used as the seed for random values.")
 
 args = parser.parse_args()
 
@@ -32,9 +32,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print (device)
 
 # Random seed
-torch.manual_seed(0)
-np.random.seed(0)
-random.seed(0)
+torch.manual_seed(args.seed)
+np.random.seed(args.seed)
+random.seed(args.seed)
 
 dataset = EllipsesDataset(csv_file=args.csv_file, root_dir=args.root_dir)
 
@@ -45,8 +45,6 @@ test_loader = DataLoader(test_data, batch_size = 5, shuffle=True, num_workers=2)
 
 classes = (0,1,2,3,4,5)
 
-print("Finished training")
-
 correct = 0
 total = 0
 
@@ -56,11 +54,9 @@ with torch.no_grad():
         labels = data.get('ellipses')
         predicted = torch.from_numpy(np.array([random.choice(classes) for i in range(5)]))
         total += labels.size(0)
-        print(predicted)
-        print(labels)
         correct += (predicted == labels).sum().item()
 
-print('Accuracy of the network on the test images: %d %%' % (
+print('Accuracy of randomly assigning a class: %d %%' % (
     100 * correct / total))
 
 
