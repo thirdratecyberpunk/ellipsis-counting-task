@@ -79,7 +79,7 @@ parser.add_argument('--root_dir', default='data/shapes_dataset_MR/', help="Root 
 parser.add_argument('--seed', type=int, default=0, help="Value used as the seed for random values.")
 parser.add_argument('--display', action='store_true', help="Boolean for displaying a sample of images.")
 parser.add_argument('--num_test_samples', type=int, default=5, help="Number of images in a batch.")
-parser.add_argument('--epochs', type=int, default=2, help="Amount of generations to train the model for.")
+parser.add_argument('--epochs', type=int, default=5, help="Amount of generations to train the model for.")
 
 args = parser.parse_args()
 
@@ -91,7 +91,12 @@ torch.manual_seed(args.seed)
 np.random.seed(args.seed)
 random.seed(args.seed)
 
-dataset = EllipsesDataset(csv_file=args.csv_file, root_dir=args.root_dir)
+dataset = EllipsesDataset(csv_file=args.csv_file, root_dir=args.root_dir, transform = transforms.Compose(
+        [
+        transforms.Resize((32,32)),
+        transforms.ToTensor(),
+        transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5))
+        ]))
 
 train_data, test_data = train_test_split(dataset, test_size=0.1)
 

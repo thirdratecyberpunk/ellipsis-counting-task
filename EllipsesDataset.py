@@ -28,16 +28,7 @@ class EllipsesDataset(Dataset):
         # creates a data frame from the contents of the csv
         self.num_of_elements_frame = pd.read_csv(csv_file)
         self.root_dir = root_dir
-        # transforms act as image transformations
-        # compose chains the transitions together
-        # this turns an image into a tensor, then normalizes it
-        # TODO: change image size definition in nn rather than just resize it
-        self.transform = transforms.Compose(
-        [
-        transforms.Resize((32,32)),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5))
-        ])
+        self.transform = transform
 
     # returns the number of elements in a dataset as the length of frame
     def __len__(self):
