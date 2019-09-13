@@ -71,22 +71,25 @@ classes = ('0','1','2','3','4','5')
 model = EllipsesResNet().to(device)
 
 loss_function = nn.CrossEntropyLoss()
-optimizer = optim.Adadelta(model.parameters())
+optimiser = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
+print("Training...")
 # iterating for each epoch
 for epoch in range(args.epochs):
     print("Starting epoch " + str(epoch))
     total_loss = 0.0
-    # training
     model.train()
     for i, data in enumerate(train_loader, 0):
-        x = data.get('img_tensor').to(device)
-        y = data.get('ellipses').to(device)
+        image = data.get('img_tensor').to(device)
+        label = data.get('ellipses').to(device)
+        # zero parameter gradients
+        optimiser.zero_grad()
         # training step for one batch
-        outputs = model(x)
-        loss = loss_function(outputs, y)
+        outputs = model(image)
+        loss = loss_function(outputs, label)
         loss.backward()
-        optimizer.step()
+        optimiser.step()
+        total_loss += loss.item()
     # evaluation
 model.eval()
 
@@ -98,8 +101,13 @@ with torch.no_grad():
         image = data.get('img_tensor').to(device)
         label = data.get('ellipses').to(device)
         outputs = model(image)
-        predicted = torch.max(outputs, 1)[1]
+        _, predicted = torch.max(outputs.data, 1)
         total += label.size(0)
+        print("_____PREDICTED_____")
+        print(predicted)
+        print("_____ACTUAL____")
+        print(label)
+        print("___________________")
         correct += (predicted == label).sum().item()
     
 print('Accuracy of ResNet: %d %%' % (100 * correct / total))
