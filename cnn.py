@@ -105,7 +105,7 @@ test_loader = DataLoader(test_data, batch_size = 5, shuffle=True, num_workers=2)
 
 classes = ('0','1','2','3','4','5')
 
-net = Net()
+net = Net().to(device)
 # cross entrophy loss: using the distribution of classes in the dataset to
 # reduce prediction errors
 criterion = nn.CrossEntropyLoss()
@@ -117,16 +117,16 @@ print("Training...")
 for epoch in range(args.epochs):
     print("Starting epoch " + str(epoch))
     running_loss = 0.0
+    net.train()
     for i, data in enumerate(train_loader, 0):
         # gets inputs
-        # input, labels = data
-        input = data.get('img_tensor')
-        labels = { data.get('polygons'), data.get('ellipses')}
+        image = data.get('img_tensor').to(device)
+        label = data.get('ellipses').to(device)
         # zero parameter gradients
         optimiser.zero_grad()
         # forward, back and optimise
-        outputs = net(input)
-        loss = criterion(outputs, data.get('ellipses'))
+        outputs = net(image)
+        loss = criterion(outputs, label)
         loss.backward()
         optimiser.step()
         # print statistical information
@@ -134,36 +134,19 @@ for epoch in range(args.epochs):
 
 print("Finished training")
 
-# testing performance
-data_iter = iter(test_loader)
-next = data_iter.next()
-images = next.get('img_tensor')
-labels = next.get('ellipses')
-polygon_labels = next.get('polygons')
-
-if (args.display):
-	imshow(torchvision.utils.make_grid(images))
-
-outputs = net(images)
-
-# obtaining the index of the highest energy
-_, predicted = torch.max(outputs, 1)
-
-true_val = (classes[labels[j]] for j in range(5))
-pred_val = (classes[predicted[j]] for j in range(5))
-polygon_val = (classes[polygon_labels[j]] for j in range(5))
-
-print(tabulate({"True value": true_val,"Predicted value": pred_val,"Polygons": polygon_val}, headers="keys", showindex="always"))
+net.eval()
 
 correct = 0
 total = 0
 with torch.no_grad():
     for data in test_loader:
-        images = data.get('img_tensor')
-        labels = data.get('ellipses')
+        images = data.get('img_tensor').to(device)
+        labels = data.get('ellipses').to(device)
         outputs = net(images)
         _, predicted = torch.max(outputs.data, 1)
         total += labels.size(0)
+        print(predicted)
+        print(label)
         correct += (predicted == labels).sum().item()
 
 print('Accuracy of the network on the test images: %d %%' % (
