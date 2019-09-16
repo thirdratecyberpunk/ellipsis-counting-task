@@ -19,26 +19,13 @@ from tabulate import tabulate
 from EllipsesDataset import EllipsesDataset
 from sklearn.model_selection import train_test_split
 import random
+import csv
+from CsvNameGen import generate_csv_name
+import time
 
 class Net(nn.Module):
         # constructing the neural network's structure
         def __init__(self):
-            '''
-            super(Net, self).__init__()
-            # 3 input channels
-            # 6 output channels
-            # filters are 3 * 5 * 5
-            self.conv1 = nn.Conv2d(3,6,5)
-            # 2 by 2 kernel with a stride of 2
-            self.pool = nn.MaxPool2d(2,2)
-            self.conv2 = nn.Conv2d(6,16,5)
-            # TODO: change image size definition in nn
-            # rather than just resize it
-            # 16 input channels
-            self.fc1 = nn.Linear(16 * 5 * 5, 120)
-            self.fc2 = nn.Linear(120, 84)
-            self.fc3 = nn.Linear(84,10)
-            '''
             super(Net, self).__init__()
             # 3 input channels
             # 6 output channels
@@ -80,6 +67,7 @@ parser.add_argument('--seed', type=int, default=0, help="Value used as the seed 
 parser.add_argument('--display', action='store_true', help="Boolean for displaying a sample of images.")
 parser.add_argument('--num_test_samples', type=int, default=5, help="Number of images in a batch.")
 parser.add_argument('--epochs', type=int, default=5, help="Amount of generations to train the model for.")
+parser.add_argument('--output_csv', default = 'output/alexnet/', help="Directory to save experiment results to.")
 
 args = parser.parse_args()
 
@@ -109,45 +97,47 @@ net = Net().to(device)
 # cross entrophy loss: using the distribution of classes in the dataset to
 # reduce prediction errors
 criterion = nn.CrossEntropyLoss()
-#criterion = nn.BCELoss()
 optimiser = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 
 print("Training...")
-# training the network
-for epoch in range(args.epochs):
-    print("Starting epoch " + str(epoch))
-    running_loss = 0.0
-    net.train()
-    for i, data in enumerate(train_loader, 0):
-        # gets inputs
-        image = data.get('img_tensor').to(device)
-        label = data.get('ellipses').to(device)
-        # zero parameter gradients
-        optimiser.zero_grad()
-        # forward, back and optimise
-        outputs = net(image)
-        loss = criterion(outputs, label)
-        loss.backward()
-        optimiser.step()
-        # print statistical information
-        running_loss += loss.item()
 
+with open(generate_csv_name(args.output_csv, "alex_net", args.epochs, args.seed), 'w') as csvfile:
+    fieldnames = ['epoch','seed', 'batch_size','time', 'running_loss', 'accuracy']
+    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    writer.writeheader()
+    startts = time.time()
+    for epoch in range(args.epochs):
+        print("Starting epoch " + str(epoch))
+        running_loss = 0.0
+        net.train()
+        # training the network
+        for i, data in enumerate(train_loader, 0):
+            # gets inputs
+            image = data.get('img_tensor').to(device)
+            label = data.get('ellipses').to(device)
+            # zero parameter gradients
+            optimiser.zero_grad()
+            # forward, back and optimise
+            outputs = net(image)
+            loss = criterion(outputs, label)
+            loss.backward()
+            optimiser.step()
+            # print statistical information
+            running_loss += loss.item()
+
+        net.eval()
+        # evaluating performance at this epoch
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for data in test_loader:
+                images = data.get('img_tensor').to(device)
+                labels = data.get('ellipses').to(device)
+                outputs = net(images)
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+        accuracy = 100.00 * correct / total
+        writer.writerow({'epoch': epoch, 'seed': args.seed, 'batch_size': args.num_test_samples, 'time': time.time() - startts, 'running_loss': running_loss, 'accuracy' : accuracy})
+                
 print("Finished training")
-
-net.eval()
-
-correct = 0
-total = 0
-with torch.no_grad():
-    for data in test_loader:
-        images = data.get('img_tensor').to(device)
-        labels = data.get('ellipses').to(device)
-        outputs = net(images)
-        _, predicted = torch.max(outputs.data, 1)
-        total += labels.size(0)
-        print(predicted)
-        print(label)
-        correct += (predicted == labels).sum().item()
-
-print('Accuracy of the network on the test images: %d %%' % (
-    100 * correct / total))
