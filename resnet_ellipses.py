@@ -21,7 +21,10 @@ from tabulate import tabulate
 from EllipsesDataset import EllipsesDataset
 from sklearn.model_selection import train_test_split
 import random
-
+from CsvNameGen import generate_csv_name
+import time
+import csv
+from CsvNameGen import generate_csv_name
 
 '''
 Implementation of ResNet class.
@@ -41,6 +44,7 @@ parser.add_argument('--seed', type=int, default=0, help="Value used as the seed 
 parser.add_argument('--display', action='store_true', help="Boolean for displaying a sample of images.")
 parser.add_argument('--num_test_samples', type=int, default=5, help="Number of images in a batch.")
 parser.add_argument('--epochs', type=int, default=5, help="Amount of generations to train the model for.")
+parser.add_argument('--output_csv', default = 'output/resnet/', help="Directory to save experiment results to.")
 
 args = parser.parse_args()
 
@@ -57,7 +61,7 @@ dataset = EllipsesDataset(csv_file=args.csv_file, root_dir=args.root_dir, transf
         [
         transforms.Resize((224,224)),
         transforms.ToTensor(),
-        transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5))
+        transforms.Normalize((0.485, 0.456, 0.406), (0.229,0.224,0.225))
         ]))
 
 train_data, test_data = train_test_split(dataset, test_size=0.1)
@@ -68,47 +72,50 @@ test_loader = DataLoader(test_data, batch_size = 5, shuffle=True, num_workers=2)
 classes = ('0','1','2','3','4','5')
 
 # model
-model = EllipsesResNet().to(device)
+net = EllipsesResNet().to(device)
 
 loss_function = nn.CrossEntropyLoss()
-optimiser = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+optimiser = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 
 print("Training...")
-# iterating for each epoch
-for epoch in range(args.epochs):
-    print("Starting epoch " + str(epoch))
-    total_loss = 0.0
-    model.train()
-    for i, data in enumerate(train_loader, 0):
-        image = data.get('img_tensor').to(device)
-        label = data.get('ellipses').to(device)
-        # zero parameter gradients
-        optimiser.zero_grad()
-        # training step for one batch
-        outputs = model(image)
-        loss = loss_function(outputs, label)
-        loss.backward()
-        optimiser.step()
-        total_loss += loss.item()
-    # evaluation
-model.eval()
-
-correct = 0
-total = 0
 
 with torch.no_grad():
-    for data in test_loader:
-        image = data.get('img_tensor').to(device)
-        label = data.get('ellipses').to(device)
-        outputs = model(image)
-        _, predicted = torch.max(outputs.data, 1)
-        total += label.size(0)
-        print("_____PREDICTED_____")
-        print(predicted)
-        print("_____ACTUAL____")
-        print(label)
-        print("___________________")
-        correct += (predicted == label).sum().item()
-    
-print('Accuracy of ResNet: %d %%' % (100 * correct / total))
+    with open(generate_csv_name(args.output_csv, "resnet", args.epochs, args.seed), 'w') as csvfile:
+        fieldnames = ['epoch','seed', 'batch_size','time', 'running_loss', 'accuracy']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        startts = time.time()
+        for epoch in range(args.epochs):
+            print("Starting epoch " + str(epoch))
+            running_loss = 0.0
+            net.train()
+            # training the network
+            for i, data in enumerate(train_loader, 0):
+                # gets inputs
+                image = data.get('img_tensor').to(device)
+                label = data.get('ellipses').to(device)
+                # zero parameter gradients
+                optimiser.zero_grad()
+                # forward, back and optimise
+                outputs = net(image)
+                loss = loss_function(outputs, label)
+                loss.backward()
+                optimiser.step()
+                # print statistical information
+                running_loss += loss.item()
 
+            net.eval()
+            # evaluating performance at this epoch
+            correct = 0
+            total = 0
+                for data in test_loader:
+                    images = data.get('img_tensor').to(device)
+                    labels = data.get('ellipses').to(device)
+                    outputs = net(images)
+                    _, predicted = torch.max(outputs.data, 1)
+                    total += labels.size(0)
+                    correct += (predicted == labels).sum().item()
+            accuracy = 100.00 * correct / total
+            writer.writerow({'epoch': epoch, 'seed': args.seed, 'batch_size': args.num_test_samples, 'time': time.time() - startts, 'running_loss': running_loss, 'accuracy' : accuracy})
+                
+print("Finished training")
