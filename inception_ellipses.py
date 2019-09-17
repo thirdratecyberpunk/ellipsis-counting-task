@@ -78,44 +78,44 @@ optimiser = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 
 print("Training...")
 
-with torch.no_grad():
-    with open(generate_csv_name(args.output_csv, "inception", args.epochs, args.seed), 'w') as csvfile:
-        fieldnames = ['epoch','seed', 'batch_size','time', 'running_loss', 'accuracy']
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writeheader()
-        startts = time.time()
-        for epoch in range(args.epochs):
-            print("Starting epoch " + str(epoch))
-            running_loss = 0.0
-            net.train()
-            # training the network
-            for i, data in enumerate(train_loader, 0):
-                # gets inputs
-                image = data.get('img_tensor').to(device)
-                label = data.get('ellipses').to(device)
-                # zero parameter gradients
-                optimiser.zero_grad()
-                # forward, back and optimise
-                outputs = net(image)
-                loss = loss_function(outputs, label)
-                loss.backward()
-                optimiser.step()
-                # print statistical information
-                running_loss += loss.item()
+with open(generate_csv_name(args.output_csv, "inception", args.epochs, args.seed), 'w') as csvfile:
+    fieldnames = ['epoch','seed', 'batch_size','time', 'running_loss', 'accuracy']
+    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    writer.writeheader()
+    startts = time.time()
+    for epoch in range(args.epochs):
+        print("Starting epoch " + str(epoch))
+        running_loss = 0.0
+        net.train()
+        # training the network
+        for i, data in enumerate(train_loader, 0):
+            # gets inputs
+            image = data.get('img_tensor').to(device)
+            label = data.get('ellipses').to(device)
+            # zero parameter gradients
+            optimiser.zero_grad()
+            # forward, back and optimise
+            outputs = net(image)
+            loss = loss_function(outputs, label)
+            loss.backward()
+            optimiser.step()
+            # print statistical information
+            running_loss += loss.item()
 
-            net.eval()
-            # evaluating performance at this epoch
-            correct = 0
-            total = 0
-                for data in test_loader:
-                    images = data.get('img_tensor').to(device)
-                    labels = data.get('ellipses').to(device)
-                    outputs = net(images)
-                    _, predicted = torch.max(outputs.data, 1)
-                    total += labels.size(0)
-                    correct += (predicted == labels).sum().item()
-            accuracy = 100.00 * correct / total
-            writer.writerow({'epoch': epoch, 'seed': args.seed, 'batch_size': args.num_test_samples, 'time': time.time() - startts, 'running_loss': running_loss, 'accuracy' : accuracy})
+        net.eval()
+        # evaluating performance at this epoch
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for data in test_loader:
+                images = data.get('img_tensor').to(device)
+                labels = data.get('ellipses').to(device)
+                outputs = net(images)
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+        accuracy = 100.00 * correct / total
+        writer.writerow({'epoch': epoch, 'seed': args.seed, 'batch_size': args.num_test_samples, 'time': time.time() - startts, 'running_loss': running_loss, 'accuracy' : accuracy})
                 
 print("Finished training")
 
